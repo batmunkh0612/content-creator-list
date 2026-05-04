@@ -1,3 +1,13 @@
+---
+title: Content Creator Worker
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Influencer Analytics Platform
 
 A production-ready MVP for collecting and analyzing public Instagram influencer
