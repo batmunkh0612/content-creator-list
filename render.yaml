@@ -1,0 +1,50 @@
+# Render infrastructure-as-code for the API service.
+# Worker (Playwright) lives on Hugging Face Spaces — Render free can't fit
+# Chromium. Postgres and Redis are external (Neon + Upstash).
+#
+# Secrets (DATABASE_URL, REDIS_URL, JWT_SECRET, IG_*, FB_*) are set in the
+# Render dashboard rather than committed here. `sync: false` means Render
+# will prompt for the value on first deploy and never overwrite it from
+# this file.
+services:
+  - type: web
+    name: content-creator-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy && node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 60000
+      - key: RATE_LIMIT_MAX
+        value: 100
+      - key: CACHE_TTL_SECONDS
+        value: 300
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: IG_SESSIONID
+        sync: false
+      - key: IG_DS_USER_ID
+        sync: false
+      - key: IG_COOKIES
+        sync: false
+      - key: IG_WWW_CLAIM
+        sync: false
+      - key: FB_COOKIES
+        sync: false
+      - key: FB_USER_PK
+        sync: false
+      - key: FB_DTSG
+        sync: false

@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Influencer {
+  id               String    @id @default(cuid())
+  platform         String    @default("instagram") // instagram | youtube | tiktok | facebook
+  username         String
+  fullName         String?
+  bio              String?
+  profilePicUrl    String?
+  externalUrl      String?   // creator's website / link in bio
+  isVerified       Boolean   @default(false)
+  followers        Int       @default(0)
+  following        Int       @default(0)
+  postsCount       Int       @default(0)
+  engagementRate   Float     @default(0)
+  postingFrequency Float     @default(0) // posts per week
+  avgLikes         Float     @default(0)
+  avgComments      Float     @default(0)
+  avgViews         Float     @default(0) // YouTube/TikTok
+  totalLikes       BigInt?   // TikTok hearts, YouTube total views
+
+  platformUserId   String?   // IG pk, TikTok secUid, etc.
+  followersFetched Int       @default(0) // how many follower rows we currently have
+  followersFetchedAt DateTime?
+  followersBlocked Boolean   @default(false) // true if last fetch was rate-limited / login wall
+  // IG's `next_max_id` cursor from the last followers/following page. Lets
+  // each "fetch N more" click resume IG's pagination instead of restarting
+  // from page 1. Null means "start from the beginning" (initial state, or
+  // we walked to the end of IG's available list).
+  followersCursor  String?
+
+  followingFetched   Int       @default(0)
+  followingFetchedAt DateTime?
+  followingBlocked   Boolean   @default(false)
+  followingCursor    String?
+
+  // Paginated posts fetch — IG's feed/user `next_max_id`. Lets each
+  // "fetch N more posts" click walk further back into the user's history
+  // instead of refetching the latest 12 every time.
+  postsCursor        String?
+  postsFetchedAt     DateTime?
+
+  // Reels share the `posts` table with mediaType='reel' so charts /
+  // average computations can include them; the cursor here is for IG's
+  // clips/user endpoint so "FETCH 10 NEW REELS" walks deeper.
+  reelsCursor        String?
+  reelsFetchedAt     DateTime?
+
+  // Stories don't paginate — IG returns the user's currently active set
+  // (24h window) in one call. We just track the last refresh time.
+  storiesFetchedAt   DateTime?
+
+  lastScrapedAt    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  posts         Post[]
+  followerList  Follower[]
+  followingList Following[]
+  stories       Story[]
+
+  @@unique([platform, username])
+  @@index([platform])
+  @@index([followers])
+  @@index([engagementRate])
+  @@map("influencers")
+}
+
+model Follower {
+  id            String   @id @default(cuid())
+  influencerId  String   // who's being followed
+  username      String   // follower's handle
+  fullName      String?
+  profilePicUrl String?
+  isVerified    Boolean  @default(false)
+  isPrivate     Boolean  @default(false)
+  fetchedAt     DateTime @default(now())
+
+  influencer    Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+
+  @@unique([influencerId, username])
+  @@index([influencerId])
+  @@map("followers")
+}
+
+model Following {
+  id            String   @id @default(cuid())
+  influencerId  String   // the influencer who follows them
+  username      String   // the handle being followed
+  fullName      String?
+  profilePicUrl String?
+  isVerified    Boolean  @default(false)
+  isPrivate     Boolean  @default(false)
+  fetchedAt     DateTime @default(now())
+
+  influencer    Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+
+  @@unique([influencerId, username])
+  @@index([influencerId])
+  @@map("following")
+}
+
+model Post {
+  id           String    @id @default(cuid())
+  influencerId String
+  shortcode    String?   @unique // platform-specific id (IG shortcode, YT videoId, TT video id)
+  likes        Int       @default(0)
+  comments     Int       @default(0)
+  views        Int?      // YouTube views, TikTok plays
+  shares       Int?      // TikTok / Facebook shares
+  caption      String?   @db.Text
+  mediaType    String?   // image | video | carousel | short | reel | livestream
+  mediaUrl     String?
+  permalink    String?
+  postedAt     DateTime?
+  scrapedAt    DateTime  @default(now())
+
+  influencer Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+
+  @@index([influencerId])
+  @@index([postedAt])
+  @@index([mediaType])
+  @@map("posts")
+}
+
+// IG stories — 24h ephemeral. We snapshot whatever's currently live for
+// the influencer; old stories that have rolled past their `expiresAt` stay
+// in the table as a permanent record so the user can review what was
+// posted (IG itself wipes them server-side).
+model Story {
+  id           String    @id @default(cuid())
+  influencerId String
+  storyId      String    @unique // IG's media id, dedupes across snapshots
+  mediaType    String?   // image | video
+  mediaUrl     String?
+  thumbnailUrl String?
+  views        Int?      // IG's reels viewer count when visible to us
+  takenAt      DateTime?
+  expiresAt    DateTime?
+  scrapedAt    DateTime  @default(now())
+
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+
+  @@index([influencerId])
+  @@index([takenAt])
+  @@map("stories")
+}
+
+// Persistent cache for IG CDN images. Once we've fetched a profile pic or
+// post image, the bytes are stored here so subsequent renders don't hit IG
+// (or our rate limiter). Keyed by sha1(url) since IG URLs are >300 chars
+// and not safe as a primary key.
+model CachedImage {
+  urlHash   String   @id // sha1(url) — stable, fixed-length PK
+  url       String   @db.Text
+  mimetype  String
+  data      Bytes
+  size      Int
+  status    Int      @default(200)
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([fetchedAt])
+  @@index([expiresAt])
+  @@map("cached_images")
+}
+
+model ScrapeJob {
+  id          String    @id @default(cuid())
+  platform    String    @default("instagram")
+  username    String
+  status      String    @default("pending") // pending | active | completed | failed
+  attempts    Int       @default(0)
+  error       String?
+  jobId       String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([platform])
+  @@index([username])
+  @@index([status])
+  @@map("scrape_jobs")
+}
+
+// IG sessions used by the followers/following workers. Sourced from the DB
+// at runtime so the user can rotate cookies via the UI without restarting
+// the worker. The legacy env vars (IG_SESSIONID*, IG_COOKIES*) are still
+// read as a fallback when the table is empty — first DB session inserted
+// takes over and env is ignored from then on.
+model IgSession {
+  id             String    @id @default(cuid())
+  label          String?   // human-readable name shown in the UI
+  sessionid      String?   // IG_SESSIONID — minimum required when no full jar
+  dsUserId       String?   // IG_DS_USER_ID
+  cookies        String?   // IG_COOKIES — full Cookie header pasted from DevTools
+  wwwClaim       String?   // IG_WWW_CLAIM HMAC header
+  enabled        Boolean   @default(true)
+  cold           Boolean   @default(false) // worker sets true when IG returns 429
+  cooldownEndsAt DateTime? // 30 min after `cold` was last flipped
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([enabled])
+  @@map("ig_sessions")
+}

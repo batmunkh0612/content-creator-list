@@ -1,0 +1,146 @@
+/* ==============================================================
+   v2 cards, buttons, hero, leaderboard, detail, trending
+   ============================================================== */
+
+.v2-root .glass {
+	position: relative;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+	border: 1px solid var(--line-2);
+	border-radius: var(--radius-lg);
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+}
+.v2-root .glass::before {
+	content: ''; position: absolute; inset: 0;
+	border-radius: inherit; pointer-events: none;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 30%);
+	opacity: 0.6;
+}
+.v2-root .glass.flush { border-radius: var(--radius); }
+
+.v2-root .hero {
+	position: relative;
+	padding: 36px 36px 32px;
+	border-radius: var(--radius-xl);
+	overflow: hidden;
+	background:
+		radial-gradient(800px 320px at 0% 0%, rgba(139, 92, 246, 0.22), transparent 60%),
+		radial-gradient(700px 400px at 100% 100%, rgba(34, 211, 238, 0.14), transparent 60%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+	border: 1px solid var(--line-2);
+	margin-bottom: 24px;
+}
+.v2-root .hero-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: center; }
+.v2-root .hero h1 { margin: 0; font-size: 44px; letter-spacing: -0.035em; line-height: 1.02; font-weight: 600; }
+.v2-root .hero h1 .gloss {
+	background: linear-gradient(120deg, #fff 0%, #c8c0ff 40%, #93e9ff 80%);
+	-webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.v2-root .hero p { margin: 14px 0 0; font-size: 15px; color: var(--tx-2); max-width: 540px; }
+.v2-root .hero-cta-row { display: flex; gap: 10px; margin-top: 22px; align-items: center; flex-wrap: wrap; }
+
+.v2-root .btn {
+	display: inline-flex; align-items: center; gap: 8px;
+	height: 38px; padding: 0 16px; border-radius: 10px;
+	border: 1px solid var(--line-2);
+	background: rgba(255, 255, 255, 0.04);
+	color: var(--tx-1);
+	font-size: 13px; font-weight: 500;
+	transition: background 120ms ease, transform 120ms ease, box-shadow 160ms ease;
+}
+.v2-root .btn:hover { background: rgba(255, 255, 255, 0.08); }
+.v2-root .btn:active { transform: translateY(1px); }
+.v2-root .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.v2-root .btn-primary {
+	background: var(--grad); border-color: transparent;
+	color: #0b0b12; font-weight: 600;
+	box-shadow:
+		0 0 0 1px rgba(139, 92, 246, 0.5),
+		0 8px 28px -8px rgba(99, 102, 241, 0.7),
+		inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.v2-root .btn-primary:hover {
+	filter: brightness(1.08);
+	box-shadow:
+		0 0 0 1px rgba(139, 92, 246, 0.7),
+		0 14px 36px -8px rgba(99, 102, 241, 0.9),
+		inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.v2-root .btn-ghost { background: transparent; border-color: var(--line-2); }
+.v2-root .btn-ghost:hover { background: rgba(255, 255, 255, 0.04); }
+.v2-root .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+
+.v2-root .live-ticker {
+	display: inline-flex; align-items: center; gap: 8px;
+	padding: 6px 12px;
+	background: rgba(34, 211, 157, 0.10);
+	border: 1px solid rgba(34, 211, 157, 0.3);
+	border-radius: 999px;
+	font-family: var(--mono);
+	font-size: 11px; color: #6ce4b8; letter-spacing: 0.04em;
+}
+.v2-root .pulse-dot {
+	width: 7px; height: 7px; border-radius: 50%;
+	background: var(--pos); box-shadow: 0 0 8px var(--pos);
+	position: relative;
+}
+.v2-root .pulse-dot::after {
+	content: ''; position: absolute; inset: -4px;
+	border-radius: 50%; border: 1px solid var(--pos);
+	animation: v2-pulse 1.6s ease-out infinite;
+}
+@keyframes v2-pulse {
+	0%   { transform: scale(0.6); opacity: 0.8; }
+	100% { transform: scale(2);   opacity: 0; }
+}
+
+.v2-root .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.v2-root .hero-stat {
+	padding: 18px;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid var(--line-1);
+	border-radius: var(--radius);
+	position: relative; overflow: hidden;
+}
+.v2-root .hero-stat .label {
+	font-family: var(--mono);
+	font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+	color: var(--tx-3);
+}
+.v2-root .hero-stat .value {
+	margin-top: 8px; font-size: 28px; letter-spacing: -0.03em; font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+.v2-root .hero-stat .delta { margin-top: 6px; font-family: var(--mono); font-size: 11px; }
+.v2-root .hero-stat .spark { position: absolute; right: 12px; top: 12px; width: 80px; height: 28px; }
+
+.v2-root .sec-head {
+	display: flex; align-items: center; justify-content: space-between;
+	margin: 30px 0 16px;
+}
+.v2-root .sec-title { display: flex; align-items: baseline; gap: 12px; }
+.v2-root .sec-title h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.v2-root .sec-title .crumb {
+	font-family: var(--mono);
+	font-size: 11px; color: var(--tx-3);
+	letter-spacing: 0.06em; text-transform: uppercase;
+}
+.v2-root .sec-actions { display: flex; gap: 8px; align-items: center; }
+
+.v2-root .divider { height: 1px; background: var(--line-1); border: none; margin: 24px 0; }
+.v2-root .muted { color: var(--tx-3); }
+.v2-root .mono { font-family: var(--mono); }
+
+@keyframes v2-fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.v2-root .fade-up { animation: v2-fadeUp 360ms ease both; }
+.v2-root .stagger > * { animation: v2-fadeUp 360ms ease both; }
+.v2-root .stagger > *:nth-child(1) { animation-delay: 30ms; }
+.v2-root .stagger > *:nth-child(2) { animation-delay: 60ms; }
+.v2-root .stagger > *:nth-child(3) { animation-delay: 90ms; }
+.v2-root .stagger > *:nth-child(4) { animation-delay: 120ms; }
+.v2-root .stagger > *:nth-child(5) { animation-delay: 150ms; }
+.v2-root .stagger > *:nth-child(6) { animation-delay: 180ms; }
+.v2-root .stagger > *:nth-child(7) { animation-delay: 210ms; }
+.v2-root .stagger > *:nth-child(8) { animation-delay: 240ms; }
+.v2-root .stagger > *:nth-child(9) { animation-delay: 270ms; }
+.v2-root .stagger > *:nth-child(10) { animation-delay: 300ms; }

@@ -1,0 +1,44 @@
+{
+  "name": "influencer-analytics",
+  "version": "1.0.0",
+  "description": "Production-ready Influencer Analytics Platform (Instagram public data)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:worker": "node src/workers/scrape.worker.js",
+    "dev": "nodemon src/server.js",
+    "dev:worker": "nodemon src/workers/scrape.worker.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "bulk-scrape": "node scripts/bulk-scrape.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.34.0",
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "neo4j-driver": "^5.27.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^13.0.0",
+    "playwright": "1.59.1",
+    "rate-limit-redis": "^4.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "prisma": "^5.22.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

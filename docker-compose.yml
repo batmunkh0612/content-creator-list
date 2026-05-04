@@ -1,0 +1,204 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-influencer_analytics}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-influencer_analytics}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-changeme123}
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+    ports:
+      - "7474:7474"   # HTTP browser UI
+      - "7687:7687"   # Bolt protocol (driver)
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-influencer_analytics}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      PROXY_LIST: ${PROXY_LIST:-}
+      # IG env on api too — validation in scrape controller checks for them
+      # (refuses early instead of letting the worker hit a 401).
+      IG_SESSIONID: ${IG_SESSIONID:-}
+      IG_DS_USER_ID: ${IG_DS_USER_ID:-}
+      IG_FOLLOWERS_MAX: ${IG_FOLLOWERS_MAX:-10000}
+      IG_COOKIES: ${IG_COOKIES:-}
+      IG_WWW_CLAIM: ${IG_WWW_CLAIM:-}
+      # Pool — additional sessions (numbered 1..9). All optional.
+      IG_SESSIONID_1: ${IG_SESSIONID_1:-}
+      IG_DS_USER_ID_1: ${IG_DS_USER_ID_1:-}
+      IG_COOKIES_1: ${IG_COOKIES_1:-}
+      IG_WWW_CLAIM_1: ${IG_WWW_CLAIM_1:-}
+      IG_SESSIONID_2: ${IG_SESSIONID_2:-}
+      IG_DS_USER_ID_2: ${IG_DS_USER_ID_2:-}
+      IG_COOKIES_2: ${IG_COOKIES_2:-}
+      IG_WWW_CLAIM_2: ${IG_WWW_CLAIM_2:-}
+      # Neo4j (graph mirror). Optional — service stays up if neo4j is down.
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme123}
+    ports:
+      - "3000:3000"
+    # Apply pending migrations on container start, then launch the API.
+    command: sh -c "npx prisma migrate deploy && node src/server.js"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-influencer_analytics}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      PROXY_LIST: ${PROXY_LIST:-}
+      SCRAPER_HEADLESS: ${SCRAPER_HEADLESS:-true}
+      IG_SESSIONID: ${IG_SESSIONID:-}
+      IG_DS_USER_ID: ${IG_DS_USER_ID:-}
+      IG_FOLLOWERS_MAX: ${IG_FOLLOWERS_MAX:-10000}
+      IG_COOKIES: ${IG_COOKIES:-}
+      IG_WWW_CLAIM: ${IG_WWW_CLAIM:-}
+      IG_SESSIONID_1: ${IG_SESSIONID_1:-}
+      IG_DS_USER_ID_1: ${IG_DS_USER_ID_1:-}
+      IG_COOKIES_1: ${IG_COOKIES_1:-}
+      IG_WWW_CLAIM_1: ${IG_WWW_CLAIM_1:-}
+      IG_SESSIONID_2: ${IG_SESSIONID_2:-}
+      IG_DS_USER_ID_2: ${IG_DS_USER_ID_2:-}
+      IG_COOKIES_2: ${IG_COOKIES_2:-}
+      IG_WWW_CLAIM_2: ${IG_WWW_CLAIM_2:-}
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme123}
+    command: node src/workers/scrape.worker.js
+
+  # Next.js (App Router) frontend, served by `node server.js` from the
+  # standalone build. Replaces the old Vite + nginx stack at ./frontend.
+  web:
+    build: ./content-creator-list
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # next.config.ts rewrites /api/:path* → ${API_PROXY_TARGET}/:path*
+      # (no /api prefix on the upstream). Inside the compose network the
+      # api service is reachable as `api:3000`. Override via root `.env` if
+      # the upstream lives elsewhere (e.g. the api is exposed on the host).
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:3000}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: "1"
+    # Container listens on 3000 (not nginx's 80). Keep the public-facing
+    # port at 8080 so existing tunnels / bookmarks don't break.
+    ports:
+      - "8080:3000"
+
+  # Adminer — lightweight Postgres admin UI at http://localhost:8081.
+  # Sees all four databases on the postgres service and lets you browse
+  # rows, run SQL, export to CSV, edit values inline. Single PHP binary,
+  # ~12MB image, zero config. Auto-fills the "Server" field with `postgres`
+  # via ADMINER_DEFAULT_SERVER so the login form is one less click.
+  #
+  # Login (defaults from .env):
+  #   System:   PostgreSQL
+  #   Server:   postgres   (pre-filled)
+  #   Username: app
+  #   Password: app
+  #   Database: influencer_analytics
+  #
+  # SECURITY: only bound to localhost. Do NOT add this to the cloudflared
+  # public hostname — it has no auth gate beyond DB credentials.
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      - postgres
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+
+  # Cloudflare Tunnel — quick-tunnel mode (throwaway *.trycloudflare.com URL).
+  # On startup, cloudflared prints a random public URL like
+  # `https://random-words.trycloudflare.com` that proxies to web:3000. No DNS
+  # setup, no token, no auth — disposable.
+  #
+  # To switch to a named tunnel with a stable hostname, swap the command for:
+  #   tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  # and bind a Public Hostname → `web:3000` in the Zero Trust dashboard.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://web:3000
+    depends_on:
+      - web
+    # No `ports:` — cloudflared makes outbound-only connections to
+    # Cloudflare's edge. That's the whole point of a tunnel.
+
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:
+  neo4j_logs:
