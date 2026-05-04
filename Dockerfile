@@ -27,7 +27,10 @@ RUN npx prisma generate
 
 COPY . .
 
-EXPOSE 3000
+EXPOSE 7860
 
-# Default command runs API; worker container overrides this in docker-compose.
-CMD ["node", "src/server.js"]
+# Default command runs the BullMQ scrape worker — this image is the one
+# Hugging Face Spaces builds and runs. The API service in docker-compose
+# overrides this CMD with `node src/server.js`, so local dev is unchanged.
+# (Render deploys the API via its native Node runtime and ignores this file.)
+CMD ["node", "src/workers/scrape.worker.js"]
